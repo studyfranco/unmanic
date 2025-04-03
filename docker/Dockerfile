@@ -1,4 +1,4 @@
-FROM lsiobase/ubuntu:jammy
+FROM debian:testing-slim
 LABEL maintainer="Josh.5 <jsunnex@gmail.com>"
 
 
@@ -13,145 +13,50 @@ ENV \
 # TODO: Remove intel-opencl-icd and replace with suggested build by Jellyfin
 #   https://jellyfin.org/docs/general/administration/hardware-acceleration.html
 #   https://github.com/jellyfin/jellyfin/blob/master/Dockerfile
-RUN \
-    echo "**** Install build dependencies requirements ****" \
-        && apt-get update \
-        && apt-get install -y \
-            ca-certificates \
-            curl \
-            gnupg \
-            wget \
-    && \
-    echo "**** Install runtime packages ****" \
-        && apt-get install -y \
-            libexpat1 \
-            libglib2.0-0 \
-            libgomp1 \
-            libharfbuzz0b \
-            libmediainfo0v5 \
-            libv4l-0 \
-            libx11-6 \
-            libxcb1 \
-            libxext6 \
-            libxml2 \
-    && \
-    echo "**** Install all available media acceleration packages ****" \
-        # va-driver-all: 
-        #   A meta-package for installing all available Video Acceleration API (VAAPI) drivers. Includes packages like:
-        #       - i965-va-driver
-        #       - intel-media-va-driver
-        #       - mesa-va-drivers
-        #       - libdrm2
-        #       - etc
-        && apt-get install -y \
-            va-driver-all \
-    && \
-    echo "**** Install arch specific packages for $(uname -m) ****" \
-        && sleep 2 \
-        && \
-        if uname -m | grep -q x86; then \
-            echo "**** Add Intel Graphics repository  ****" \
-                && wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg \
-                && echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | tee /etc/apt/sources.list.d/intel-gpu-jammy.list \
-            && \
-            echo "**** Install Intel Media Drivers  ****" \
-                && apt-get update \
-                # intel-media-va-driver-non-free:
-                #   This is the primary driver for Intel's Video Acceleration API on Linux, which provides support for video encoding and decoding on Intel graphics hardware.
-                # libigdgmm12:
-                #   A part of the Intel Graphics Memory Management Library, which is used for managing graphics memory in an efficient and optimized way on Intel GPUs.
-                # libmfx1:
-                #   This is a library for Intel Media SDK runtime. It is necessary for applications that use Intel Quick Sync Video technology.
-                # libmfxgen1:
-                #   Similar to libmfx1, it's a part of the Intel Media SDK.
-                # libva-drm2 and libva2:
-                #   These are additional libraries needed for VAAPI to interface with the Direct Rendering Manager (DRM) and to provide the main API for VAAPI.
-                # libvpl2:
-                #   This is the successor to the Media SDK and provides a library for video processing.
-                && apt-get install -y \
-                    intel-media-va-driver-non-free \
-                    libigdgmm12 \
-                    libmfx1 \
-                    libmfxgen1 \
-                    libva-drm2 \
-                    libva2 \
-                    libvpl2 \
-            && \
-            echo ; \
-        fi \
-    && \
-    echo "**** Install hardware info tools packages ****" \
-        # hwinfo:
-        #   A hardware identification system that provides detailed information about all the hardware components of a computer.
-        # vainfo:
-        #   This utility displays information about the VAAPI capabilities of your hardware.
-        && apt-get install -y \
-            hwinfo \
-            vainfo \
-    && \
-    echo "**** Section cleanup ****" \
-        && apt-get clean autoclean -y \
-        && apt-get autoremove -y \
-        && rm -rf \
-            /var/lib/apt/lists/* \
-            /var/tmp/* \
-            /tmp/*
+
+RUN set -x \
+    && rm /etc/apt/sources.list.d/debian.sources \
+    && echo "Acquire::Languages { \"fr\"; \"de\"; \"ru\"; \"en\";};" > /etc/apt/apt.conf.d/docker-no-languages \
+    && echo "deb http://deb.debian.org/debian/ testing main contrib non-free non-free-firmware" > /etc/apt/sources.list \
+    && apt update \
+    && apt install -y ca-certificates apt-transport-https --no-install-recommends \
+    && echo "" > /etc/apt/sources.list \
+    && echo "Types: deb\nURIs: https://deb.debian.org/debian\nSuites: testing\nComponents: main contrib non-free non-free-firmware\nEnabled: yes\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg" > /etc/apt/sources.list.d/debian.sources \
+    && apt update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y locales \
+    && echo "C.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\nen_GB.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\nfr_FR.UTF-8 UTF-8\nru_RU.UTF-8 UTF-8" >> /etc/locale.gen \
+    && echo "LANG=en_US.UTF-8\nLC_MESSAGES=en_US.UTF-8\nLANGUAGE=" > /etc/default/locale \
+    && dpkg-reconfigure --frontend=noninteractive locales \
+    && locale-gen \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y locales-all \
+    && DEBIAN_FRONTEND=noninteractive apt purge -yy sudo \
+    && apt dist-upgrade -y \
+    && echo "\nTypes: deb\nURIs: https://deb.debian.org/debian\nSuites: unstable\nComponents: main contrib non-free non-free-firmware\nEnabled: yes\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg" >> /etc/apt/sources.list.d/debian.sources \
+    && echo "Package: *\nPin: release a=unstable\nPin-Priority: 490" > /etc/apt/preferences.d/list \
+    && echo "Package: *\nPin: release a=stable\nPin-Priority: 480" > /etc/apt/preferences.d/list \
+    && echo "deb https://www.deb-multimedia.org testing main non-free" > /etc/apt/sources.list.d/multimedia.list \
+    && apt-get update -oAcquire::AllowInsecureRepositories=true \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated deb-multimedia-keyring --no-install-recommends \
+    && rm /etc/apt/sources.list.d/multimedia.list \
+    && echo "Types: deb\nURIs: https://www.deb-multimedia.org\nSuites: testing\nComponents: main non-free\nEnabled: yes\nSigned-By: /usr/share/keyrings/deb-multimedia-keyring.pgp" > /etc/apt/sources.list.d/multimedia.sources \
+    && echo "\nTypes: deb\nURIs: https://www.deb-multimedia.org\nSuites: stable\nComponents: main non-free\nEnabled: yes\nSigned-By: /usr/share/keyrings/deb-multimedia-keyring.pgp" >> /etc/apt/sources.list.d/multimedia.sources \
+    && echo "\nTypes: deb\nURIs: https://www.deb-multimedia.org\nSuites: unstable\nComponents: main non-free\nEnabled: yes\nSigned-By: /usr/share/keyrings/deb-multimedia-keyring.pgp" >> /etc/apt/sources.list.d/multimedia.sources \
+    && apt autopurge -yy \
+    && apt clean \
+    && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
+
+RUN set -x \
+    && apt update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y nano less ffmpegthumbs tar wget curl pigz jq mkvtoolnix ffmpeg handbrake-cli va-driver-all mesa-utils mesa-va-drivers mesa-vulkan-drivers mesa-opencl-icd libgl1-mesa-dri libglx-mesa0 vulkan-tools rsync zip acl sed vainfo intel-media-va-driver-non-free firmware-intel-graphics firmware-intel-misc intel-opencl-icd hwinfo openssl sqlite3 jq --no-install-recommends --fix-missing \
+    && apt dist-upgrade -y \
+    && apt autopurge -yy \
+    && apt clean autoclean -y \
+    && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
 
 
 # Install commonly used command line tools
-ARG JELLYFIN_FFMPEG_VERSION="6"
 ARG NODE_MAJOR="20"
 RUN \
-    echo "**** Install FFmpeg for $(uname -m) ****" \
-        && sleep 2 \
-        && apt-get update \
-        && \
-        if uname -m | grep -q x86; then \
-            echo "**** Add Jellyfin repository ****" \
-                && wget -qO - https://repo.jellyfin.org/jellyfin_team.gpg.key | gpg --dearmor --output /usr/share/keyrings/jellyfin_team.gpg \
-                && echo "deb [arch=$( dpkg --print-architecture ) signed-by=/usr/share/keyrings/jellyfin_team.gpg] https://repo.jellyfin.org/ubuntu jammy main" | tee /etc/apt/sources.list.d/jellyfin.list \
-            && \
-            echo "**** Install jellyfin-ffmpeg and linked 3rd party libs ****" \
-                && apt-get update \
-                && apt-get install --no-install-recommends --no-install-suggests -y \
-                    openssl \
-                    locales \
-                && apt-get install -y \
-                    jellyfin-ffmpeg${JELLYFIN_FFMPEG_VERSION} \
-                && ln -s /usr/lib/jellyfin-ffmpeg/ffmpeg /usr/local/bin/ffmpeg \
-                && ln -s /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe \
-            && \
-            echo ; \
-        fi \
-        && \
-        if uname -m | grep -q aarch64; then \
-            echo "**** Add Jellyfin repository ****" \
-                && wget -qO - https://repo.jellyfin.org/jellyfin_team.gpg.key | gpg --dearmor --output /usr/share/keyrings/jellyfin_team.gpg \
-                && echo "deb [arch=$( dpkg --print-architecture ) signed-by=/usr/share/keyrings/jellyfin_team.gpg] https://repo.jellyfin.org/ubuntu jammy main" | tee /etc/apt/sources.list.d/jellyfin.list \
-            && \
-            echo "**** Install jellyfin-ffmpeg and linked 3rd party libs ****" \
-                && apt-get update \
-                && apt-get install --no-install-recommends --no-install-suggests -y \
-                    locales \
-                    libssl-dev \
-                    libfontconfig1 \
-                    libfreetype6 \
-                    libomxil-bellagio0 \
-                    libomxil-bellagio-bin \
-                && apt-get install -y \
-                    jellyfin-ffmpeg${JELLYFIN_FFMPEG_VERSION} \
-                && ln -s /usr/lib/jellyfin-ffmpeg/ffmpeg /usr/local/bin/ffmpeg \
-                && ln -s /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe \
-            && \
-            echo ; \
-        fi \
-    && \
-    echo "**** Install startup script requirements ****" \
-        && apt-get install -y \
-            jq \
-            nano \
-            sqlite3 \
-    && \
     echo "**** Add NodeJS repository ****" \
         && wget -qO - https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --output /usr/share/keyrings/nodesource.gpg \
         && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
@@ -166,12 +71,9 @@ RUN \
             libimage-exiftool-perl \
     && \
     echo "**** Section cleanup ****" \
-        && apt-get clean autoclean -y \
-        && apt-get autoremove -y \
-        && rm -rf \
-            /var/lib/apt/lists/* \
-            /var/tmp/* \
-            /tmp/*
+        && apt autopurge -yy \
+        && apt clean autoclean -y \
+        && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
 
 
 # Add pip requirements
@@ -200,12 +102,9 @@ RUN \
             && python3 -m pip install --no-cache-dir -r /tmp/requirements.txt \
     && \
     echo "**** Section cleanup ****" \
-        && apt-get clean autoclean -y \
-        && apt-get autoremove -y \
-        && rm -rf \
-            /var/lib/apt/lists/* \
-            /var/tmp/* \
-            /tmp/*
+        && apt autopurge -yy \
+        && apt clean autoclean -y \
+        && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
 
 
 # Install pre-built Unmanic wheel
