@@ -33,7 +33,7 @@ RUN set -x \
     && apt dist-upgrade -y \
     && echo "\nTypes: deb\nURIs: https://deb.debian.org/debian\nSuites: unstable\nComponents: main contrib non-free non-free-firmware\nEnabled: yes\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg" >> /etc/apt/sources.list.d/debian.sources \
     && echo "Package: *\nPin: release a=unstable\nPin-Priority: 490" > /etc/apt/preferences.d/list \
-    && echo "Package: *\nPin: release a=stable\nPin-Priority: 480" > /etc/apt/preferences.d/list \
+    && echo "Package: *\nPin: release a=stable\nPin-Priority: 480" >> /etc/apt/preferences.d/list \
     && echo "deb https://www.deb-multimedia.org testing main non-free" > /etc/apt/sources.list.d/multimedia.list \
     && apt-get update -oAcquire::AllowInsecureRepositories=true \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated deb-multimedia-keyring --no-install-recommends \
@@ -47,87 +47,20 @@ RUN set -x \
 
 RUN set -x \
     && apt update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y nano less ffmpegthumbs tar wget curl pigz jq mkvtoolnix ffmpeg handbrake-cli va-driver-all mesa-utils mesa-va-drivers mesa-vulkan-drivers mesa-opencl-icd libgl1-mesa-dri libglx-mesa0 vulkan-tools rsync zip acl sed vainfo intel-media-va-driver-non-free firmware-intel-graphics firmware-intel-misc intel-opencl-icd hwinfo openssl sqlite3 jq --no-install-recommends --fix-missing \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y nano less ffmpegthumbs tar wget curl pigz jq mkvtoolnix ffmpeg handbrake-cli va-driver-all mesa-utils mesa-va-drivers mesa-vulkan-drivers mesa-opencl-icd libgl1-mesa-dri libglx-mesa0 vulkan-tools rsync zip acl sed vainfo intel-media-va-driver-non-free firmware-intel-graphics firmware-intel-misc intel-opencl-icd hwinfo openssl sqlite3 jq nodejs libimage-exiftool-perl grc gcc python3 python3-dev python3-pip python3-setuptools unzip gosu --no-install-recommends --fix-missing \
     && apt dist-upgrade -y \
     && apt autopurge -yy \
     && apt clean autoclean -y \
     && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
 
-
-# Install commonly used command line tools
-ARG NODE_MAJOR="20"
-RUN \
-    echo "**** Add NodeJS repository ****" \
-        && wget -qO - https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --output /usr/share/keyrings/nodesource.gpg \
-        && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
-    && \
-    echo "**** Install NodeJS for $(uname -m) ****" \
-        && apt-get update \
-        && apt-get install -y \
-            nodejs \
-    && \
-    echo "**** Install exiftool for $(uname -m) ****" \
-        && apt-get install -y \
-            libimage-exiftool-perl \
-    && \
-    echo "**** Section cleanup ****" \
-        && apt autopurge -yy \
-        && apt clean autoclean -y \
-        && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
-
-
-# Add pip requirements
-COPY /requirements.txt /tmp/requirements.txt
-
-
-# Install Unmanic python dependencies.
-RUN \
-    echo "**** Install Unmanic application dependencies ****" \
-        && sleep 2 \
-        && \
-        echo "**** Update sources ****" \
-            && apt-get update \
-        && \
-        echo "**** Install python ****" \
-            && apt-get install -y --no-install-recommends \
-                grc \
-                gcc \
-                python3 \
-                python3-dev \
-                python3-pip \
-                python3-setuptools \
-                unzip \
-        && \
-        echo "**** Install pip packages ****" \
-            && python3 -m pip install --no-cache-dir -r /tmp/requirements.txt \
-    && \
-    echo "**** Section cleanup ****" \
-        && apt autopurge -yy \
-        && apt clean autoclean -y \
-        && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
-
-
-# Install pre-built Unmanic wheel
-# Must first run `python3 ./setup.py bdist_wheel` on host to build package
-COPY /dist/ /src/
-RUN \
-    echo "**** Install Unmanic ****" \
-        && sleep 2 \
-        && \
-        echo "**** Install unmanic from pre-built wheel ****" \
-            && ls -l /src/ \
-            && python3 -m pip install --no-cache-dir /src/*.whl \
-        && \
-        echo "**** Move unmanic executable so we can wrap a bash script around it for developers ****" \
-            && mv -f /usr/local/bin/unmanic /usr/local/bin/unmanic-service \
-        && \
-        echo "**** Make default paths for unmanic library ****" \
-            && mkdir -p /library
-
-
-# Add local files
-COPY /docker/root /
-
+RUN python3 -m pip install unmanic \
+    && mkdir -p /config \
+    && mkdir -p /library \
+    && adduser --system --no-create-home --gecos "" --home /config unmanic
 
 # Unmanic runs on port 8888
 EXPOSE 8888/tcp
+
+COPY --chmod=0755 /docker/files/run.sh /run.sh
+COPY --chmod=0755 /docker/files/entrypoint.sh /entrypoint.sh
+CMD ["/entrypoint.sh"]
