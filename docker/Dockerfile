@@ -56,7 +56,8 @@ RUN set -x \
 RUN python3 -m pip install --break-system-packages unmanic \
     && mkdir -p /config \
     && mkdir -p /library \
-    && adduser --system --no-create-home --gecos "" --home /config unmanic
+    && addgroup --system unmanic \
+    && adduser --system --no-create-home --gecos "" --home /config --ingroup unmanic unmanic
 
 # Unmanic runs on port 8888
 EXPOSE 8888/tcp
