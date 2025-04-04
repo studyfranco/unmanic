@@ -53,7 +53,7 @@ RUN set -x \
     && apt clean autoclean -y \
     && rm -rf /var/cache/* /var/lib/apt/lists/* /var/log/* /var/tmp/* /tmp/*
 
-RUN python3 -m pip install unmanic \
+RUN python3 -m pip install --break-system-packages unmanic \
     && mkdir -p /config \
     && mkdir -p /library \
     && adduser --system --no-create-home --gecos "" --home /config unmanic
